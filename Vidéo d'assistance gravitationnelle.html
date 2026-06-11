@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Assistance gravitationnelle - hyperbole locale rigoureuse</title>
+<style>
+:root{
+  --bg:#f3f5f8; --panel:#ffffff; --border:#d5d9e0; --text:#111827; --muted:#4b5563;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Arial, Helvetica, sans-serif;}
+header{padding:15px 22px 10px 22px;background:var(--panel);border-bottom:1px solid var(--border);}
+h1{margin:0;font-size:22px}
+.subtitle{margin-top:6px;font-size:14px;color:var(--muted);line-height:1.4}
+.layout{display:grid;grid-template-columns:390px 1fr;gap:12px;padding:12px;height:calc(100vh - 82px)}
+.panel,.viewer{background:var(--panel);border:1px solid var(--border);border-radius:12px}
+.panel{padding:14px;overflow-y:auto}
+.viewer{padding:8px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;min-width:980px;min-height:760px}
+.canvasBox{border:1px solid #e1e5eb;border-radius:10px;background:#fcfcfd;overflow:hidden;position:relative}
+.canvasTitle{position:absolute;left:10px;top:8px;font-weight:bold;font-size:14px;background:rgba(255,255,255,0.86);padding:4px 8px;border-radius:7px;z-index:2}
+canvas{width:100%;height:100%;display:block}
+.control{margin-bottom:14px}
+label{display:block;font-size:14px;font-weight:bold;margin-bottom:5px}
+input[type="range"]{width:100%}
+.value{font-family:Menlo, Consolas, monospace;font-size:13px;color:#1f2937}
+.small{font-size:12px;color:#6b7280;margin-top:2px}
+.buttons{display:flex;flex-wrap:wrap;gap:8px;margin:13px 0 12px 0}
+button{padding:8px 12px;border:1px solid #aab2bd;border-radius:8px;background:#fff;cursor:pointer;font-weight:bold}
+button:hover{background:#eef2f5}
+.metrics{margin-top:10px;padding:11px;border-radius:9px;background:#f1f3f6;font-size:14px;line-height:1.48}
+.note{margin-top:12px;padding:11px;border:1px solid #e3e6ea;border-radius:9px;font-size:13px;line-height:1.45;color:#374151}
+.legendLine{display:flex;align-items:center;gap:8px;margin:4px 0}
+.sample{width:30px;height:0;border-top:3px solid #111}
+.dash{border-top-style:dashed}
+</style>
+</head>
+<body>
+<header>
+  <h1>Assistance gravitationnelle autour de Jupiter — hyperbole locale rigoureuse</h1>
+  <div class="subtitle">
+    Version pédagogique enrichie : trajectoire hyperbolique locale définie analytiquement, asymptotes entrante et sortante,
+    annotations “avant rencontre / périjove / après rencontre”, et fenêtre de zoom sur le contournement de Jupiter.
+  </div>
+</header>
+
+<div class="layout">
+<section class="panel">
+  <div class="control">
+    <label for="vinf">Vitesse d’approche relative à Jupiter, v∞</label>
+    <input id="vinf" type="range" min="3" max="18" step="0.1" value="7.5">
+    <div class="value"><span id="vinfVal">7.5</span> km/s</div>
+  </div>
+  <div class="control">
+    <label for="angle">Orientation de la vitesse entrante dans le plan local</label>
+    <input id="angle" type="range" min="-170" max="170" step="1" value="-35">
+    <div class="value"><span id="angleVal">-35</span>°</div>
+  </div>
+  <div class="control">
+    <label for="rp">Distance minimale à Jupiter</label>
+    <input id="rp" type="range" min="0.002" max="0.120" step="0.001" value="0.030">
+    <div class="value"><span id="rpVal">0.030</span> UA</div>
+    <div class="small">Le périjove est également affiché en rayons joviens.</div>
+  </div>
+  <div class="control">
+    <label for="phase">Position de Jupiter sur son orbite</label>
+    <input id="phase" type="range" min="0" max="360" step="1" value="70">
+    <div class="value"><span id="phaseVal">70</span>°</div>
+  </div>
+  <div class="control">
+    <label for="incl">Inclinaison du plan de passage de la sonde</label>
+    <input id="incl" type="range" min="-75" max="75" step="1" value="25">
+    <div class="value"><span id="inclVal">25</span>°</div>
+  </div>
+  <div class="control">
+    <label for="az">Azimut de caméra 3D</label>
+    <input id="az" type="range" min="-180" max="180" step="1" value="-45">
+    <div class="value"><span id="azVal">-45</span>°</div>
+  </div>
+  <div class="control">
+    <label for="el">Élévation de caméra 3D</label>
+    <input id="el" type="range" min="5" max="82" step="1" value="25">
+    <div class="value"><span id="elVal">25</span>°</div>
+  </div>
+  <div class="control">
+    <label for="frame">Temps de l’animation</label>
+    <input id="frame" type="range" min="0" max="320" step="1" value="0">
+    <div class="value">image <span id="frameVal">0</span> / 320</div>
+  </div>
+  <div class="buttons">
+    <button id="playBtn">Lecture</button>
+    <button id="pauseBtn">Pause</button>
+    <button id="resetBtn">Réinitialiser</button>
+  </div>
+  <div class="metrics" id="metrics"></div>
+  <div class="note">
+    <b>Ajouts pédagogiques</b><br><br>
+    - hyperbole locale fondée sur les paramètres orbitaux \(e\), \(a\), \(b\) ;<br>
+    - asymptotes entrante et sortante tracées en pointillé ;<br>
+    - repères explicites : avant rencontre, périjove, après rencontre ;<br>
+    - fenêtre de zoom montrant le contournement de Jupiter autour du périjove.
+  </div>
+</section>
+
+<section class="viewer">
+  <div class="canvasBox">
+    <div class="canvasTitle">1. Vue héliocentrique 3D globale</div>
+    <canvas id="global3d" width="900" height="520"></canvas>
+  </div>
+  <div class="canvasBox">
+    <div class="canvasTitle">2. Vue locale hyperbolique + asymptotes + zoom</div>
+    <canvas id="local3d" width="900" height="520"></canvas>
+  </div>
+  <div class="canvasBox">
+    <div class="canvasTitle">3. Composantes de vitesse héliocentrique</div>
+    <canvas id="graph" width="900" height="520"></canvas>
+  </div>
+  <div class="canvasBox">
+    <div class="canvasTitle">4. Diagramme vectoriel avant/après</div>
+    <canvas id="vector" width="900" height="520"></canvas>
+  </div>
+</section>
+</div>
+
+<script>
+"use strict";
+
+/* ================= Constantes ================= */
+const AU_km = 149597870.7;
+const year_s = 365.25*24*3600;
+const AUyr_to_kms = AU_km/year_s;
+const muSun = 4*Math.PI*Math.PI;
+const aJ = 5.2044;
+const eJ = 0.0489;
+const nJ = Math.sqrt(muSun/Math.pow(aJ,3));
+const muJ_km = 126686534.0;
+const RJ_km = 71492.0;
+const RJ_AU = RJ_km/AU_km;
+const N = 321;
+
+/* ================= Utilitaires ================= */
+function norm(v){return Math.hypot(...v)}
+function add(a,b){return a.map((x,i)=>x+b[i])}
+function sub(a,b){return a.map((x,i)=>x-b[i])}
+function mul(a,c){return a.map(x=>x*c)}
+function dot(a,b){return a.reduce((s,x,i)=>s+x*b[i],0)}
+function clamp(x,a,b){return Math.max(a,Math.min(b,x))}
+function unit(v){const n=norm(v); return n>0?mul(v,1/n):[1,0,0]}
+function rotX(v,a){const c=Math.cos(a),s=Math.sin(a);return [v[0],c*v[1]-s*v[2],s*v[1]+c*v[2]]}
+function rotZ(v,a){const c=Math.cos(a),s=Math.sin(a);return [c*v[0]-s*v[1],s*v[0]+c*v[1],v[2]]}
+
+function rr(ctx,x,y,w,h,r){
+  ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function drawArrowScreen(ctx,x1,y1,x2,y2,color,width=2,head=10){
+  const ang=Math.atan2(y2-y1,x2-x1);
+  ctx.save(); ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=width;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-head*Math.cos(ang-Math.PI/6),y2-head*Math.sin(ang-Math.PI/6));
+  ctx.lineTo(x2-head*Math.cos(ang+Math.PI/6),y2-head*Math.sin(ang+Math.PI/6));
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+function labelWithArrow(ctx,text,x,y,tx,ty,color="#111827"){
+  ctx.save(); ctx.font="12px Arial"; ctx.fillStyle=color; ctx.strokeStyle=color;
+  drawArrowScreen(ctx, tx, ty, x, y, color, 1.6, 8);
+  ctx.fillText(text, tx+4, ty-4);
+  ctx.restore();
+}
+
+/* ================= Jupiter képlérien ================= */
+function keplerE(M,e){
+  M=((M%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+  let E=M;
+  for(let k=0;k<18;k++) E -= (E-e*Math.sin(E)-M)/(1-e*Math.cos(E));
+  return E;
+}
+function jupiterState(M){
+  const E=keplerE(M,eJ);
+  const bfac=Math.sqrt(1-eJ*eJ);
+  const x=aJ*(Math.cos(E)-eJ);
+  const y=aJ*bfac*Math.sin(E);
+  const dEdt=nJ/(1-eJ*Math.cos(E));
+  const vx=-aJ*Math.sin(E)*dEdt;
+  const vy=aJ*bfac*Math.cos(E)*dEdt;
+  return {r:[x,y,0], v:[vx,vy,0]};
+}
+
+/* ================= Calcul hyperbolique local rigoureux ================= */
+function compute(){
+  const vInf_kms = Number(document.getElementById("vinf").value);
+  const angleDeg = Number(document.getElementById("angle").value);
+  const rp_AU = Number(document.getElementById("rp").value);
+  const phaseDeg = Number(document.getElementById("phase").value);
+  const inclDeg = Number(document.getElementById("incl").value);
+
+  const phase = phaseDeg*Math.PI/180;
+  const incl = inclDeg*Math.PI/180;
+  const alphaIn = angleDeg*Math.PI/180;
+
+  const rp_km = rp_AU*AU_km;
+  const aabs_km = muJ_km/(vInf_kms*vInf_kms);  // |a| pour l’hyperbole
+  const ecc = 1 + rp_km*vInf_kms*vInf_kms/muJ_km;
+  const b_km = aabs_km*Math.sqrt(ecc*ecc - 1);
+
+  // Choix de la fenêtre locale : distance "lointaine" d’affichage
+  const Rfar_AU = Math.max(0.40, 24*rp_AU);
+  const Rfar_km = Rfar_AU*AU_km;
+
+  function localPosVelFromH(H){
+    // Coordonnées focus-centrées, périastre à x = rp > 0
+    const x = aabs_km*(ecc - Math.cosh(H));
+    const y = b_km*Math.sinh(H);
+    const dt_dH = Math.sqrt(Math.pow(aabs_km,3)/muJ_km)*(ecc*Math.cosh(H)-1); // s
+    const dx_dH = -aabs_km*Math.sinh(H);
+    const dy_dH =  b_km*Math.cosh(H);
+    const vx = dx_dH/dt_dH;
+    const vy = dy_dH/dt_dH;
+    const t = Math.sqrt(Math.pow(aabs_km,3)/muJ_km)*(ecc*Math.sinh(H)-H);
+    return {r:[x/AU_km, y/AU_km, 0], v:[vx, vy, 0], t_s:t};
+  }
+
+  // Détermination de Hmax pour atteindre Rfar
+  let Hmax = 0.1;
+  for(let k=0;k<200;k++){
+    const s = localPosVelFromH(Hmax);
+    if(norm(s.r)*AU_km >= Rfar_km) break;
+    Hmax += 0.04;
+  }
+
+  // Orientation initiale : on tourne la branche pour que la vitesse entrante ait l’angle demandé
+  const testIn = localPosVelFromH(-Hmax);
+  const angleV0 = Math.atan2(testIn.v[1], testIn.v[0]);
+  const gamma = alphaIn - angleV0;
+
+  let J=[], VJ=[], P=[], VP=[], Pfree=[], Vfree=[], Rel=[], Vrel=[], speed=[], relSpeed=[], distJ=[], components=[], timesY=[];
+  let localRaw=[], asymIn=[], asymOut=[];
+  let initialP=null, initialV=null;
+
+  for(let i=0;i<N;i++){
+    const H = -Hmax + (2*Hmax*i)/(N-1);
+    let s = localPosVelFromH(H);
+
+    // Rotation dans le plan puis inclinaison
+    let rel = rotZ(s.r, gamma);
+    rel = rotX(rel, incl);
+
+    let vrel_kms = rotZ(s.v, gamma);
+    vrel_kms = rotX(vrel_kms, incl);
+
+    const ty = s.t_s / year_s;
+    const js = jupiterState(phase + nJ*ty);
+    const vrel_AUyr = mul(vrel_kms, 1/AUyr_to_kms);
+
+    const pos = add(js.r, rel);
+    const vel = add(js.v, vrel_AUyr);
+
+    if(i===0){initialP=pos.slice(); initialV=vel.slice();}
+    const freePos = add(initialP, mul(initialV, ty - timesY[0] || 0));
+
+    J.push(js.r); VJ.push(js.v); P.push(pos); VP.push(vel); Pfree.push(freePos); Vfree.push(initialV);
+    Rel.push(rel); Vrel.push(vrel_AUyr); speed.push(norm(vel)*AUyr_to_kms); relSpeed.push(norm(vrel_kms));
+    distJ.push(norm(rel)); components.push([vel[0]*AUyr_to_kms, vel[1]*AUyr_to_kms, vel[2]*AUyr_to_kms]); timesY.push(ty);
+    localRaw.push(s);
+  }
+
+  // Correction trajectoire sans Jupiter : utiliser l’échelle de temps réelle par rapport au premier point
+  Pfree = timesY.map(ty => add(initialP, mul(initialV, ty - timesY[0])));
+
+  // Orbite globale de Jupiter
+  let orbit=[];
+  for(let k=0;k<=720;k++) orbit.push(jupiterState(2*Math.PI*k/720).r);
+
+  // Asymptotes analytiques dans le repère local focus-centré
+  // y = - (b/a) x + b e   et   y = + (b/a) x - b e, en km
+  const xMin = -Rfar_km/AU_km*1.05;
+  const xMax =  rp_AU*1.15;
+  function makeAsym(sign){
+    // sign = +1  => y = +(b/a)x - be ; sign = -1 => y = -(b/a)x + be
+    let pts=[];
+    const n=120;
+    for(let i=0;i<n;i++){
+      const x = xMin + (xMax-xMin)*i/(n-1);
+      const y = sign*(b_km/aabs_km)*(x*AU_km) - sign*(b_km*ecc);
+      let p = [x, y/AU_km, 0];
+      p = rotZ(p, gamma);
+      p = rotX(p, incl);
+      pts.push(p);
+    }
+    return pts;
+  }
+  asymIn = makeAsym(+1);
+  asymOut = makeAsym(-1);
+
+  const vinVec = VP[0], voutVec = VP[N-1];
+  const vrelIn = Vrel[0], vrelOut = Vrel[N-1];
+  const helioAngle = Math.acos(clamp(dot(unit(vinVec),unit(voutVec)),-1,1))*180/Math.PI;
+  const jovianAngle = Math.acos(clamp(dot(unit(vrelIn),unit(vrelOut)),-1,1))*180/Math.PI;
+
+  return {
+    params:{
+      vInf_kms, angleDeg, rp:rp_AU, phaseDeg, inclDeg,
+      ecc:ecc, aabs_AU:aabs_km/AU_km, b_AU:b_km/AU_km,
+      rpRJ:rp_AU/RJ_AU, Hmax:Hmax
+    },
+    J,VJ,P,VP,Pfree,Vfree,Rel,Vrel,speed,relSpeed,distJ,components,orbit,timesY,
+    asymIn, asymOut,
+    vin:norm(vinVec)*AUyr_to_kms,
+    vout:norm(voutVec)*AUyr_to_kms,
+    gain:(norm(voutVec)-norm(vinVec))*AUyr_to_kms,
+    vinVec:mul(vinVec,AUyr_to_kms), voutVec:mul(voutVec,AUyr_to_kms),
+    vrelIn:mul(vrelIn,AUyr_to_kms), vrelOut:mul(vrelOut,AUyr_to_kms),
+    helioAngle, jovianAngle
+  };
+}
+
+/* ================= Canvas setup ================= */
+const cvG=document.getElementById("global3d"), gG=cvG.getContext("2d");
+const cvL=document.getElementById("local3d"), gL=cvL.getContext("2d");
+const cvGraph=document.getElementById("graph"), gGraph=cvGraph.getContext("2d");
+const cvV=document.getElementById("vector"), gV=cvV.getContext("2d");
+let cache=compute(), playing=false, timer=null;
+
+function clear(ctx,cv){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.save(); ctx.strokeStyle="#eef1f5"; ctx.lineWidth=1;
+  for(let x=0;x<cv.width;x+=50){ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,cv.height); ctx.stroke();}
+  for(let y=0;y<cv.height;y+=50){ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(cv.width,y); ctx.stroke();}
+  ctx.restore();
+}
+function projectGlobal(p){
+  const az=Number(document.getElementById("az").value)*Math.PI/180;
+  const el=Number(document.getElementById("el").value)*Math.PI/180;
+  let q=rotZ(p,az); q=rotX(q,-el);
+  const d=15.0, k=d/(d-q[2]), scale=58;
+  return [cvG.width/2 + q[0]*k*scale, cvG.height/2 - q[1]*k*scale, q[2]];
+}
+function projectLocalGeneric(p, cv, scaleMult=1, centerX=null, centerY=null){
+  const az=Number(document.getElementById("az").value)*Math.PI/180;
+  const el=Number(document.getElementById("el").value)*Math.PI/180;
+  let q=rotZ(p,az); q=rotX(q,-el);
+  const d=6.0, k=d/(d-q[2]);
+  const maxR = Math.max(...cache.Rel.map(r=>norm(r)));
+  const scale = scaleMult*0.42*Math.min(cv.width,cv.height)/maxR;
+  return [(centerX??cv.width/2) + q[0]*k*scale, (centerY??cv.height/2) - q[1]*k*scale, q[2], scale];
+}
+function projectLocal(p){ return projectLocalGeneric(p, cvL, 1, null, null); }
+
+function drawPath(ctx,pts,iMax,color,width,project,dashed=false){
+  ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=width; if(dashed) ctx.setLineDash([9,7]);
+  ctx.beginPath(); let p=project(pts[0]); ctx.moveTo(p[0],p[1]);
+  for(let i=1;i<=iMax;i++){p=project(pts[i]); ctx.lineTo(p[0],p[1]);}
+  ctx.stroke(); ctx.restore();
+}
+function drawPoint(ctx,pos,r,fill,stroke,label,project){
+  const p=project(pos); ctx.save(); ctx.beginPath(); ctx.arc(p[0],p[1],r,0,2*Math.PI); ctx.fillStyle=fill; ctx.fill();
+  if(stroke){ctx.strokeStyle=stroke; ctx.lineWidth=1.5; ctx.stroke();}
+  if(label){ctx.font="13px Arial"; ctx.fillStyle="#111827"; ctx.fillText(label,p[0]+9,p[1]-9);}
+  ctx.restore();
+}
+function drawArrow(ctx,pos,vec,color,project,scale,label){
+  const a=project(pos), b=project(add(pos,mul(vec,scale)));
+  drawArrowScreen(ctx,a[0],a[1],b[0],b[1],color,2.2,10);
+  if(label){ctx.save(); ctx.font="12px Arial"; ctx.fillStyle=color; ctx.fillText(label,b[0]+5,b[1]-5); ctx.restore();}
+}
+
+/* ================= Dessins ================= */
+function drawGlobal(){
+  const i=Number(document.getElementById("frame").value);
+  clear(gG,cvG);
+  drawPath(gG,cache.orbit,cache.orbit.length-1,"#4b5563",1.7,projectGlobal,false);
+  drawPath(gG,cache.J,i,"#0f766e",2.7,projectGlobal,false);
+  drawPath(gG,cache.P,i,"#b45309",2.8,projectGlobal,false);
+  drawPath(gG,cache.Pfree,i,"#7c3aed",2.1,projectGlobal,true);
+  drawPoint(gG,[0,0,0],8,"#f59e0b","#92400e","Soleil",projectGlobal);
+  drawPoint(gG,cache.J[i],8,"#d1d5db","#374151","Jupiter",projectGlobal);
+  drawPoint(gG,cache.P[i],5,"#ef4444","#7f1d1d","sonde",projectGlobal);
+  drawArrow(gG,cache.J[i],cache.VJ[i],"#0f766e",projectGlobal,0.08,"vJ");
+  drawArrow(gG,cache.P[i],cache.VP[i],"#b45309",projectGlobal,0.055,"v");
+}
+
+function drawLocalMainAndZoom(){
+  const i=Number(document.getElementById("frame").value);
+  clear(gL,cvL);
+
+  const relPath=cache.Rel;
+  const freeRel=cache.Pfree.map((p,k)=>sub(p,cache.J[k]));
+
+  // Asymptotes
+  drawPath(gL,cache.asymIn,cache.asymIn.length-1,"#64748b",1.6,projectLocal,true);
+  drawPath(gL,cache.asymOut,cache.asymOut.length-1,"#64748b",1.6,projectLocal,true);
+
+  // Trajectoires
+  drawPath(gL,relPath,i,"#b45309",3.0,projectLocal,false);
+  drawPath(gL,freeRel,i,"#7c3aed",2.1,projectLocal,true);
+
+  const center = projectLocal([0,0,0]);
+  const jScale = center[3];
+  const jRadiusPx = Math.max(4, RJ_AU*jScale);
+
+  // Disque de Jupiter en occultation
+  gL.save();
+  gL.beginPath();
+  gL.arc(center[0],center[1],jRadiusPx,0,2*Math.PI);
+  const grad=gL.createRadialGradient(center[0]-0.35*jRadiusPx,center[1]-0.35*jRadiusPx,0.25*jRadiusPx,center[0],center[1],jRadiusPx);
+  grad.addColorStop(0,"#f1f5f9"); grad.addColorStop(0.55,"#cbd5e1"); grad.addColorStop(1,"#64748b");
+  gL.fillStyle=grad; gL.fill(); gL.strokeStyle="#334155"; gL.lineWidth=1.6; gL.stroke();
+  gL.restore();
+
+  // Périjove (cercle de rayon rp, juste pour repère)
+  let periCircle=[];
+  for(let k=0;k<=240;k++){
+    const t=2*Math.PI*k/240;
+    periCircle.push([cache.params.rp*Math.cos(t), cache.params.rp*Math.sin(t), 0]);
+  }
+  drawPath(gL,periCircle,periCircle.length-1,"#94a3b8",1.2,projectLocal,false);
+
+  // Sonde et vitesse
+  drawPoint(gL,relPath[i],6,"#ef4444","#7f1d1d","sonde",projectLocal);
+  drawArrow(gL,relPath[i],cache.Vrel[i],"#b45309",projectLocal,0.038,"v rel");
+
+  // Annotations pédagogiques
+  const pStart = projectLocal(relPath[0]);
+  const pPeri  = projectLocal(relPath[Math.floor((N-1)/2)]);
+  const pEnd   = projectLocal(relPath[N-1]);
+  labelWithArrow(gL,"avant rencontre", pStart[0],pStart[1], pStart[0]-110,pStart[1]-25, "#1f2937");
+  labelWithArrow(gL,"périjove", pPeri[0],pPeri[1], pPeri[0]+28,pPeri[1]-70, "#1f2937");
+  labelWithArrow(gL,"après rencontre", pEnd[0],pEnd[1], pEnd[0]-30,pEnd[1]+35, "#1f2937");
+
+  // Légende
+  gL.save();
+  gL.fillStyle="rgba(255,255,255,0.90)"; gL.strokeStyle="#d1d5db";
+  rr(gL,16,16,445,120,9); gL.fill(); gL.stroke();
+  gL.fillStyle="#111827"; gL.font="13px Arial";
+  gL.fillText("Hyperbole locale analytique + asymptotes",28,40);
+  gL.fillText("e = " + cache.params.ecc.toFixed(3) + " ; |a| = " + cache.params.aabs_AU.toFixed(4) + " UA ; b = " + cache.params.b_AU.toFixed(4) + " UA",28,64);
+  gL.fillText("rp = " + cache.params.rp.toFixed(3) + " UA ≈ " + cache.params.rpRJ.toFixed(1) + " RJ",28,88);
+  gL.fillText("Jupiter masque la portion de trajectoire située derrière elle",28,112);
+  gL.restore();
+
+  // Fenêtre de zoom
+  const inset = {x:cvL.width-275, y:cvL.height-250, w:245, h:210};
+  gL.save();
+  gL.fillStyle="rgba(255,255,255,0.95)";
+  gL.strokeStyle="#94a3b8";
+  rr(gL,inset.x,inset.y,inset.w,inset.h,9); gL.fill(); gL.stroke();
+  gL.font="12px Arial"; gL.fillStyle="#111827"; gL.fillText("Zoom : contournement de Jupiter", inset.x+12, inset.y+18);
+  gL.beginPath(); gL.rect(inset.x+8,inset.y+28,inset.w-16,inset.h-36); gL.clip();
+
+  const cx = inset.x + inset.w/2;
+  const cy = inset.y + 28 + (inset.h-36)/2;
+  function projZoom(p){ return projectLocalGeneric(p, {width:inset.w-16, height:inset.h-36}, 4.3, cx, cy); }
+
+  // Asymptotes en zoom
+  drawPath(gL,cache.asymIn,cache.asymIn.length-1,"#94a3b8",1.0,projZoom,true);
+  drawPath(gL,cache.asymOut,cache.asymOut.length-1,"#94a3b8",1.0,projZoom,true);
+
+  // Tracé zoom
+  drawPath(gL,relPath,i,"#b45309",2.3,projZoom,false);
+
+  const zc = projZoom([0,0,0]);
+  const zScale = zc[3];
+  const zR = Math.max(4, RJ_AU*zScale);
+
+  gL.beginPath();
+  gL.arc(zc[0],zc[1],zR,0,2*Math.PI);
+  const grad2=gL.createRadialGradient(zc[0]-0.35*zR,zc[1]-0.35*zR,0.25*zR,zc[0],zc[1],zR);
+  grad2.addColorStop(0,"#f8fafc"); grad2.addColorStop(0.55,"#cbd5e1"); grad2.addColorStop(1,"#64748b");
+  gL.fillStyle=grad2; gL.fill(); gL.strokeStyle="#334155"; gL.lineWidth=1.2; gL.stroke();
+
+  drawPoint(gL,relPath[i],4.5,"#ef4444","#7f1d1d","",projZoom);
+  drawArrow(gL,relPath[i],cache.Vrel[i],"#b45309",projZoom,0.028,"");
+  gL.restore();
+}
+
+function drawGraph(){
+  const i=Number(document.getElementById("frame").value);
+  const ctx=gGraph, cv=cvGraph;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const margin={l:58,r:18,t:36,b:52};
+  const W=cv.width-margin.l-margin.r, H=cv.height-margin.t-margin.b;
+  const comps=cache.components;
+  const all=comps.flat();
+  const ymin=Math.min(-5,Math.floor(Math.min(...all)-2));
+  const ymax=Math.max(5,Math.ceil(Math.max(...all)+2));
+  function X(k){return margin.l + k/(N-1)*W}
+  function Y(v){return margin.t + (ymax-v)/(ymax-ymin)*H}
+  ctx.save();
+  ctx.strokeStyle="#d1d5db"; ctx.lineWidth=1; ctx.strokeRect(margin.l,margin.t,W,H);
+  ctx.font="12px Arial"; ctx.fillStyle="#374151";
+  for(let j=0;j<=6;j++){
+    const v=ymin+(ymax-ymin)*j/6, y=Y(v);
+    ctx.strokeStyle="#edf0f4"; ctx.beginPath(); ctx.moveTo(margin.l,y); ctx.lineTo(margin.l+W,y); ctx.stroke();
+    ctx.fillStyle="#374151"; ctx.fillText(v.toFixed(0),12,y+4);
+  }
+  ctx.fillText("km/s",12,24);
+
+  function plotComp(index,color,label){
+    ctx.strokeStyle=color; ctx.lineWidth=2.2; ctx.beginPath();
+    ctx.moveTo(X(0),Y(comps[0][index]));
+    for(let k=1;k<N;k++) ctx.lineTo(X(k),Y(comps[k][index]));
+    ctx.stroke();
+    ctx.fillStyle=color; ctx.font="13px Arial"; ctx.fillText(label,margin.l+10+index*70,24);
+  }
+  plotComp(0,"#2563eb","vx");
+  plotComp(1,"#dc2626","vy");
+  plotComp(2,"#16a34a","vz");
+  ctx.strokeStyle="#111827"; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(X(i),margin.t); ctx.lineTo(X(i),margin.t+H); ctx.stroke();
+  ctx.fillStyle="#111827"; ctx.font="13px Arial";
+  ctx.fillText("Composantes de la vitesse héliocentrique de la sonde",margin.l,cv.height-20);
+  ctx.restore();
+}
+
+function drawVector(){
+  const ctx=gV, cv=cvV;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.save();
+  ctx.translate(cv.width/2,cv.height/2);
+  const vectors=[
+    {v:cache.vinVec,c:"#2563eb",lab:"v avant"},
+    {v:cache.voutVec,c:"#dc2626",lab:"v après"},
+    {v:cache.vrelIn,c:"#7c3aed",lab:"v∞ entrante / Jupiter"},
+    {v:cache.vrelOut,c:"#b45309",lab:"v∞ sortante / Jupiter"}
+  ];
+  const maxV=Math.max(...vectors.map(o=>norm(o.v)));
+  const scale=0.36*Math.min(cv.width,cv.height)/maxV;
+
+  ctx.strokeStyle="#e5e7eb";
+  for(let r=50;r<Math.min(cv.width,cv.height)/2;r+=50){ctx.beginPath(); ctx.arc(0,0,r,0,2*Math.PI); ctx.stroke();}
+  ctx.strokeStyle="#cbd5e1"; ctx.beginPath(); ctx.moveTo(-cv.width/2+30,0); ctx.lineTo(cv.width/2-30,0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,-cv.height/2+30); ctx.lineTo(0,cv.height/2-30); ctx.stroke();
+
+  function arrow(v,c,lab){
+    const x=v[0]*scale, y=-v[1]*scale;
+    drawArrowScreen(ctx,0,0,x,y,c,3,12);
+    ctx.font="13px Arial"; ctx.fillStyle=c; ctx.fillText(lab + " (" + norm(v).toFixed(2) + " km/s)",x+8,y-8);
+  }
+  vectors.forEach(o=>arrow(o.v,o.c,o.lab));
+  ctx.restore();
+
+  ctx.save();
+  ctx.fillStyle="rgba(255,255,255,0.90)"; ctx.strokeStyle="#d1d5db";
+  rr(ctx,18,18,455,116,9); ctx.fill(); ctx.stroke();
+  ctx.fillStyle="#111827"; ctx.font="14px Arial";
+  ctx.fillText("Angles de déviation",30,44);
+  ctx.font="13px Arial";
+  ctx.fillText("Angle entre vitesses héliocentriques avant/après : " + cache.helioAngle.toFixed(2) + "°",30,70);
+  ctx.fillText("Angle entre vitesses relatives entrante/sortante : " + cache.jovianAngle.toFixed(2) + "°",30,92);
+  ctx.fillText("L’angle hyperbolique local est cohérent avec la géométrie analytique",30,114);
+  ctx.restore();
+}
+
+/* ================= Interface ================= */
+function refreshLabels(){
+  document.getElementById("vinfVal").textContent=Number(document.getElementById("vinf").value).toFixed(1);
+  document.getElementById("angleVal").textContent=Number(document.getElementById("angle").value).toFixed(0);
+  document.getElementById("rpVal").textContent=Number(document.getElementById("rp").value).toFixed(3);
+  document.getElementById("phaseVal").textContent=Number(document.getElementById("phase").value).toFixed(0);
+  document.getElementById("inclVal").textContent=Number(document.getElementById("incl").value).toFixed(0);
+  document.getElementById("azVal").textContent=Number(document.getElementById("az").value).toFixed(0);
+  document.getElementById("elVal").textContent=Number(document.getElementById("el").value).toFixed(0);
+  document.getElementById("frameVal").textContent=Number(document.getElementById("frame").value).toFixed(0);
+}
+function updateMetrics(){
+  const i=Number(document.getElementById("frame").value);
+  document.getElementById("metrics").innerHTML =
+    "<b>Bilan héliocentrique</b><br>" +
+    "v avant : <b>" + cache.vin.toFixed(2) + " km/s</b><br>" +
+    "v après : <b>" + cache.vout.toFixed(2) + " km/s</b><br>" +
+    "Δv : <b>" + (cache.gain>=0?"+":"") + cache.gain.toFixed(2) + " km/s</b><br><br>" +
+    "<b>Géométrie locale</b><br>" +
+    "e = " + cache.params.ecc.toFixed(3) + "<br>" +
+    "rp = " + cache.params.rp.toFixed(3) + " UA ≈ " + cache.params.rpRJ.toFixed(1) + " RJ<br>" +
+    "Angle relatif entrant/sortant : " + cache.jovianAngle.toFixed(2) + "°<br>" +
+    "Angle héliocentrique avant/après : " + cache.helioAngle.toFixed(2) + "°<br><br>" +
+    "<b>Instantané</b><br>" +
+    "v sonde/Soleil : " + cache.speed[i].toFixed(2) + " km/s<br>" +
+    "v sonde/Jupiter : " + cache.relSpeed[i].toFixed(2) + " km/s<br>" +
+    "distance sonde-Jupiter : " + cache.distJ[i].toFixed(4) + " UA ≈ " + (cache.distJ[i]/RJ_AU).toFixed(1) + " RJ";
+}
+function drawAll(){
+  refreshLabels();
+  updateMetrics();
+  drawGlobal();
+  drawLocalMainAndZoom();
+  drawGraph();
+  drawVector();
+}
+function recompute(){ cache=compute(); drawAll(); }
+
+["vinf","angle","rp","phase","incl"].forEach(id=>document.getElementById(id).addEventListener("input",recompute));
+["az","el","frame"].forEach(id=>document.getElementById(id).addEventListener("input",drawAll));
+
+function play(){
+  if(playing) return;
+  playing=true;
+  timer=setInterval(()=>{
+    const f=document.getElementById("frame");
+    let i=Number(f.value); i=(i+1)%N; f.value=i; drawAll();
+  },45);
+}
+function pause(){ playing=false; if(timer) clearInterval(timer); timer=null; }
+document.getElementById("playBtn").addEventListener("click",play);
+document.getElementById("pauseBtn").addEventListener("click",pause);
+document.getElementById("resetBtn").addEventListener("click",()=>{
+  pause();
+  document.getElementById("vinf").value=7.5;
+  document.getElementById("angle").value=-35;
+  document.getElementById("rp").value=0.030;
+  document.getElementById("phase").value=70;
+  document.getElementById("incl").value=25;
+  document.getElementById("az").value=-45;
+  document.getElementById("el").value=25;
+  document.getElementById("frame").value=0;
+  recompute();
+});
+
+drawAll();
+</script>
+</body>
+</html>
